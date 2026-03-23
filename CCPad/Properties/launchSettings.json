@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "CC Pad (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "CC Pad (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

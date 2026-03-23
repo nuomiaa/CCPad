@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="CCPad.TabPanel"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Grid>
+        <TabView
+            x:Name="Tabs"
+            CanReorderTabs="True"
+            TabWidthMode="Equal"
+            AddTabButtonClick="OnAddTab"
+            TabCloseRequested="OnTabClose"
+            SelectionChanged="OnTabSelectionChanged"
+            VerticalAlignment="Stretch">
+            <TabView.TabStripFooter>
+                <StackPanel Orientation="Horizontal" Padding="0,0,8,0"
+                            HorizontalAlignment="Right">
+                    <DropDownButton x:Name="ProjectButton"
+                                    ToolTipService.ToolTip="从项目启动新标签页"
+                                    Padding="8,4"
+                                    Margin="4,0">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <FontIcon Glyph="&#xE8B7;" FontSize="14"/>
+                            <TextBlock Text="项目" VerticalAlignment="Center" FontSize="12"/>
+                        </StackPanel>
+                        <DropDownButton.Flyout>
+                            <MenuFlyout x:Name="ProjectFlyout" Placement="BottomEdgeAlignedRight"/>
+                        </DropDownButton.Flyout>
+                    </DropDownButton>
+                </StackPanel>
+            </TabView.TabStripFooter>
+        </TabView>
+
+        <Grid x:Name="PrewarmHost"
+              Width="1" Height="1" Opacity="0"
+              IsHitTestVisible="False"
+              HorizontalAlignment="Left" VerticalAlignment="Top"/>
+    </Grid>
+
+</UserControl>
