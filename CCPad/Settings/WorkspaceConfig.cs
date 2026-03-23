@@ -38,6 +38,7 @@ namespace CCPad.Settings
     }
 
     [JsonSerializable(typeof(WorkspaceEntry))]
+    [JsonSourceGenerationOptions(WriteIndented = true)]
     internal partial class WorkspaceJsonContext : JsonSerializerContext { }
 
     /// <summary>
@@ -47,12 +48,6 @@ namespace CCPad.Settings
     public static class WorkspaceConfig
     {
         public const string FileExtension = ".ccpad-workspace";
-
-        private static readonly JsonSerializerOptions WriteOptions = new()
-        {
-            WriteIndented = true,
-            TypeInfoResolver = WorkspaceJsonContext.Default
-        };
 
         // ── File-based workspace ──────────────────────────────────────
 
@@ -70,7 +65,7 @@ namespace CCPad.Settings
         {
             try
             {
-                var json = JsonSerializer.Serialize(entry, WriteOptions);
+                var json = JsonSerializer.Serialize(entry, WorkspaceJsonContext.Default.WorkspaceEntry);
                 File.WriteAllText(path, json);
                 return true;
             }
