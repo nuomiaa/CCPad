@@ -361,3 +361,18 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Claude Code
+.claude/
+
+# MSIX packages
+*.msix
+*.msixbundle
+*.msixupload
+
+# Installer output
+installer_output/
+
+# WinUI generated files
+*.xbf
+Generated\ Files/
