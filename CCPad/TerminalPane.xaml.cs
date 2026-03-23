@@ -10,7 +10,7 @@ namespace CCPad
 {
     public sealed partial class TerminalPane : UserControl, IDisposable
     {
-        private string _command = "cmd.exe /k claude";
+        private string _command = "claude";
         private string? _workingDir;
         private ConPtySession? _session;
         private bool _disposed;

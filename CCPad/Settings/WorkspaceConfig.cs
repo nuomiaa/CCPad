@@ -31,6 +31,9 @@ namespace CCPad.Settings
     {
         public int WindowWidth { get; set; } = 1200;
         public int WindowHeight { get; set; } = 800;
+        public int WindowX { get; set; } = -1;
+        public int WindowY { get; set; } = -1;
+        public bool IsMaximized { get; set; }
         public LayoutNode? Layout { get; set; }
     }
 

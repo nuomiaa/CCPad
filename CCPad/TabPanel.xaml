@@ -15,6 +15,7 @@
             AddTabButtonClick="OnAddTab"
             TabCloseRequested="OnTabClose"
             SelectionChanged="OnTabSelectionChanged"
+            HorizontalAlignment="Stretch"
             VerticalAlignment="Stretch">
             <TabView.TabStripFooter>
                 <StackPanel Orientation="Horizontal" Padding="0,0,8,0"

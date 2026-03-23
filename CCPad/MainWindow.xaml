@@ -11,6 +11,20 @@
     <Grid>
         <Grid x:Name="RootGrid"/>
 
+        <!-- About button — global, bottom-right -->
+        <DropDownButton x:Name="AboutButton"
+                        HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                        Margin="0,0,8,8"
+                        Padding="6"
+                        ToolTipService.ToolTip="关于"
+                        Background="Transparent"
+                        BorderBrush="Transparent">
+            <FontIcon Glyph="&#xE946;" FontSize="14"/>
+            <DropDownButton.Flyout>
+                <MenuFlyout x:Name="AboutFlyout" Placement="TopEdgeAlignedRight"/>
+            </DropDownButton.Flyout>
+        </DropDownButton>
+
         <!-- Workspace button — global, top-right, above all split panels -->
         <DropDownButton x:Name="WorkspaceButton"
                         HorizontalAlignment="Right" VerticalAlignment="Top"

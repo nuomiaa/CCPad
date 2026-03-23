@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
@@ -8,6 +9,8 @@ namespace CCPad.Terminal
 {
     internal class ConPtySession : IDisposable
     {
+        private const uint CREATE_UNICODE_ENVIRONMENT = 0x00000400;
+
         private IntPtr _hPC = IntPtr.Zero;
         private IntPtr _hProcess = IntPtr.Zero;
         private IntPtr _hThread = IntPtr.Zero;
@@ -52,11 +55,14 @@ namespace CCPad.Terminal
 
             string dir = workingDir ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
+            IntPtr envBlock = BuildUtf8EnvironmentBlock();
+            try
+            {
             bool ok = CreateProcess(
                 null, command,
                 IntPtr.Zero, IntPtr.Zero, false,
-                EXTENDED_STARTUPINFO_PRESENT,
-                IntPtr.Zero, dir,
+                EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT,
+                envBlock, dir,
                 ref siEx, out var pi);
 
             if (!ok)
@@ -64,6 +70,11 @@ namespace CCPad.Terminal
 
             _hProcess = pi.hProcess;
             _hThread = pi.hThread;
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(envBlock);
+            }
 
             Task.Factory.StartNew(ReadOutput, TaskCreationOptions.LongRunning);
         }
@@ -129,6 +140,37 @@ namespace CCPad.Terminal
             Cols = cols;
             Rows = rows;
             ResizePseudoConsole(_hPC, new COORD { X = (short)cols, Y = (short)rows });
+        }
+
+        /// <summary>
+        /// Build a Unicode environment block that inherits the current process's
+        /// environment and forces UTF-8 locale variables.
+        /// </summary>
+        private static IntPtr BuildUtf8EnvironmentBlock()
+        {
+            var env = Environment.GetEnvironmentVariables();
+            // Force UTF-8 locale for child processes (git, node, bash, etc.)
+            env["LANG"] = "en_US.UTF-8";
+            env["LC_ALL"] = "en_US.UTF-8";
+            env["PYTHONUTF8"] = "1";
+            env["PYTHONIOENCODING"] = "utf-8";
+
+            // Environment block: sorted KEY=VALUE\0 pairs, terminated by extra \0
+            var keys = new string[env.Count];
+            env.Keys.CopyTo(keys, 0);
+            Array.Sort(keys, StringComparer.OrdinalIgnoreCase);
+
+            var sb = new StringBuilder();
+            foreach (var key in keys)
+            {
+                sb.Append(key).Append('=').Append(env[key]).Append('\0');
+            }
+            sb.Append('\0'); // double-null terminator
+
+            var bytes = Encoding.Unicode.GetBytes(sb.ToString());
+            var ptr = Marshal.AllocHGlobal(bytes.Length);
+            Marshal.Copy(bytes, 0, ptr, bytes.Length);
+            return ptr;
         }
 
         public void Dispose()

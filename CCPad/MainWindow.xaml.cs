@@ -22,6 +22,7 @@ namespace CCPad
             SystemBackdrop = new MicaBackdrop { Kind = MicaKind.BaseAlt };
             Activated += OnFirstActivated;
             Closed += OnWindowClosed;
+            InitAboutMenu();
         }
 
         private async void OnFirstActivated(object sender, WindowActivatedEventArgs e)
@@ -176,7 +177,7 @@ namespace CCPad
             var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
             WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
             picker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.Desktop;
-            picker.SuggestedFileName = "workspace";
+            picker.SuggestedFileName = System.IO.Path.GetFileName(Environment.CurrentDirectory);
             picker.FileTypeChoices.Add("CCPad 工作区", new List<string> { WorkspaceConfig.FileExtension });
 
             var file = await picker.PickSaveFileAsync();
@@ -195,10 +196,15 @@ namespace CCPad
         private WorkspaceEntry CreateSnapshot()
         {
             var appWindow = GetAppWindow();
+            var presenter = appWindow?.Presenter as Microsoft.UI.Windowing.OverlappedPresenter;
+            var isMaximized = presenter?.State == Microsoft.UI.Windowing.OverlappedPresenterState.Maximized;
             return new WorkspaceEntry
             {
                 WindowWidth = appWindow?.Size.Width ?? 1200,
                 WindowHeight = appWindow?.Size.Height ?? 800,
+                WindowX = appWindow?.Position.X ?? -1,
+                WindowY = appWindow?.Position.Y ?? -1,
+                IsMaximized = isMaximized,
                 Layout = _splitHost!.SnapshotLayout()
             };
         }
@@ -206,8 +212,16 @@ namespace CCPad
         private void RestoreWindowSize(WorkspaceEntry ws)
         {
             var appWindow = GetAppWindow();
-            if (appWindow != null && ws.WindowWidth > 0 && ws.WindowHeight > 0)
+            if (appWindow == null) return;
+
+            if (ws.WindowX >= 0 && ws.WindowY >= 0)
+                appWindow.Move(new Windows.Graphics.PointInt32(ws.WindowX, ws.WindowY));
+
+            if (ws.WindowWidth > 0 && ws.WindowHeight > 0)
                 appWindow.Resize(new SizeInt32(ws.WindowWidth, ws.WindowHeight));
+
+            if (ws.IsMaximized && appWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter)
+                presenter.Maximize();
         }
 
         private AppWindow? GetAppWindow()
@@ -232,6 +246,46 @@ namespace CCPad
             {
                 Title = "CC Pad";
             }
+        }
+
+        // ── About menu ─────────────────────────────────────────────────────
+
+        private void InitAboutMenu()
+        {
+            var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+            var versionStr = version != null ? $"{version.Major}.{version.Minor}.{version.Build}" : "dev";
+
+            var aboutItem = new MenuFlyoutItem
+            {
+                Text = $"CC Pad v{versionStr}",
+                Icon = new FontIcon { Glyph = "\uE946" },
+                IsEnabled = false
+            };
+            AboutFlyout.Items.Add(aboutItem);
+
+            AboutFlyout.Items.Add(new MenuFlyoutSeparator());
+
+            var githubItem = new MenuFlyoutItem
+            {
+                Text = "GitHub",
+                Icon = new FontIcon { Glyph = "\uE774" }
+            };
+            githubItem.Click += async (_, _) =>
+            {
+                await Windows.System.Launcher.LaunchUriAsync(new Uri("https://github.com/nuomiaa/CCPad"));
+            };
+            AboutFlyout.Items.Add(githubItem);
+
+            var websiteItem = new MenuFlyoutItem
+            {
+                Text = "CCPad.dev",
+                Icon = new FontIcon { Glyph = "\uE774" }
+            };
+            websiteItem.Click += async (_, _) =>
+            {
+                await Windows.System.Launcher.LaunchUriAsync(new Uri("https://ccpad.dev"));
+            };
+            AboutFlyout.Items.Add(websiteItem);
         }
 
         // ── Auto-save on close (only if in workspace mode) ───────────────

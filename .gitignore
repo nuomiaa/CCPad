@@ -370,7 +370,9 @@ FodyWeavers.xsd
 *.msixbundle
 *.msixupload
 
-# Installer output
+# Build & installer scripts
+build.bat
+installer.iss
 installer_output/
 
 # WinUI generated files

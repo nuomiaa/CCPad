@@ -47,6 +47,23 @@ namespace CCPad
                 }
             }
 
+            // Auto-detect workspace file in the working directory
+            if (StartupWorkspaceFile == null)
+            {
+                var searchDir = StartupWorkingDir ?? Directory.GetCurrentDirectory();
+                try
+                {
+                    var wsFiles = Directory.GetFiles(searchDir, "*" + Settings.WorkspaceConfig.FileExtension);
+                    if (wsFiles.Length > 0)
+                    {
+                        Array.Sort(wsFiles, StringComparer.OrdinalIgnoreCase);
+                        StartupWorkspaceFile = wsFiles[0];
+                        StartupWorkingDir = null; // workspace takes precedence
+                    }
+                }
+                catch { }
+            }
+
             // 每次启动自动注册右键菜单（幂等操作）
             try { RegisterContextMenu(); } catch { }
 

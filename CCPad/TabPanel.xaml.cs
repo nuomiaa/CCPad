@@ -25,7 +25,7 @@ namespace CCPad
         public event Action<TabPanel>? CloseRequested;
         public event Action<TabPanel>? Focused;
 
-        private static string DefaultCmd => $@"{Environment.SystemDirectory}\cmd.exe /k claude";
+        private static string DefaultCmd => "claude";
 
         public TabPanel(List<ProjectEntry> projects)
         {
@@ -306,7 +306,7 @@ namespace CCPad
 
             var addItem = new MenuFlyoutItem
             {
-                Text = "添加项目",
+                Text = "添加项目...",
                 Icon = new FontIcon { Glyph = "\uE710" }
             };
             addItem.Click += async (_, _) =>
