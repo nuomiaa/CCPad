@@ -54,8 +54,6 @@ dotnet build CCPad/CCPad.csproj
 # Build (Release, x64)
 dotnet publish CCPad/CCPad.csproj -c Release -r win-x64
 
-# Build installer (requires Inno Setup 6)
-build.bat
 ```
 
 Supported targets: `win-x64`, `win-x86`, `win-arm64`.

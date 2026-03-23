@@ -54,8 +54,6 @@ dotnet build CCPad/CCPad.csproj
 # 构建（Release，x64）
 dotnet publish CCPad/CCPad.csproj -c Release -r win-x64
 
-# 构建安装程序（需要 Inno Setup 6）
-build.bat
 ```
 
 支持平台：`win-x64`、`win-x86`、`win-arm64`。
