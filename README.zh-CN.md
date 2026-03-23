@@ -28,7 +28,7 @@
 
 ## 截图
 
-<!-- TODO: 添加截图 -->
+![CC Pad — 多个 Claude Code 会话在分屏面板中并行运行](CCPad/Assets/Screenshot1.png)
 
 ## 安装
 

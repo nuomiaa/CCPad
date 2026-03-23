@@ -28,7 +28,7 @@
 
 ## Screenshots
 
-<!-- TODO: Add screenshots -->
+![CC Pad — multiple Claude Code sessions in split panes](CCPad/Assets/Screenshot1.png)
 
 ## Installation
 
