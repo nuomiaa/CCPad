@@ -5,7 +5,7 @@
 <h1 align="center">CC Pad</h1>
 
 <p align="center">
-  现代化的 Windows GPU 加速终端 — 基于 WinUI 3 和 ConPTY 构建。
+  Claude Code 多会话工作台 — 在单窗口中并行运行多个 Claude Code 会话。
 </p>
 
 <p align="center">

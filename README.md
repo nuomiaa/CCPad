@@ -5,7 +5,7 @@
 <h1 align="center">CC Pad</h1>
 
 <p align="center">
-  A modern, GPU-accelerated terminal for Windows — built with WinUI 3 and ConPTY.
+  A multi-session Claude Code workbench — run multiple Claude Code sessions in one window.
 </p>
 
 <p align="center">
