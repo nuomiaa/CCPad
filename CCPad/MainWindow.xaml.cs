@@ -25,7 +25,6 @@ namespace CCPad
             Activated += OnFirstActivated;
             Closed += OnWindowClosed;
             InitAboutMenu();
-            _ = CheckForUpdateAsync(silent: true);
         }
 
         private async void OnFirstActivated(object sender, WindowActivatedEventArgs e)
@@ -51,6 +50,7 @@ namespace CCPad
                     _currentWorkspaceFile = workspaceFile;
                     EnterWorkspaceMode();
                     Activated += OnActivated;
+                    _ = DelayedUpdateCheckAsync();
                     return;
                 }
             }
@@ -63,6 +63,13 @@ namespace CCPad
 
             RefreshWorkspaceFlyout();
             Activated += OnActivated;
+            _ = DelayedUpdateCheckAsync();
+        }
+
+        private async System.Threading.Tasks.Task DelayedUpdateCheckAsync()
+        {
+            await System.Threading.Tasks.Task.Delay(2000);
+            await CheckForUpdateAsync(silent: true);
         }
 
         private void OnActivated(object sender, WindowActivatedEventArgs e)
