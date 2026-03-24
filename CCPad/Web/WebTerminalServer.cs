@@ -8,6 +8,7 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
@@ -70,21 +71,28 @@ namespace CCPad.Web
                 return Results.Text(WebTerminalHtml.GetHtml(Token ?? ""), "text/html");
             });
 
-            // API: list active sessions
+            // API: list active sessions (uses JsonArray to avoid trimming issues with anonymous types)
             _app.MapGet("/api/sessions", (HttpContext ctx) =>
             {
-                if (!CheckToken(ctx)) return Results.Json(new { error = "Unauthorized" }, statusCode: 401);
+                if (!CheckToken(ctx))
+                    return Results.Text("{\"error\":\"Unauthorized\"}", "application/json", statusCode: 401);
 
-                var sessions = TerminalSessionRegistry.GetAll().Select(s => new
+                var all = TerminalSessionRegistry.GetAll();
+                var nodes = new JsonNode?[all.Count];
+                for (int i = 0; i < all.Count; i++)
                 {
-                    id = s.Id,
-                    label = s.Label,
-                    command = s.Command,
-                    workingDir = s.WorkingDir,
-                    cols = s.Cols,
-                    rows = s.Rows
-                });
-                return Results.Json(sessions);
+                    var s = all[i];
+                    nodes[i] = new JsonObject
+                    {
+                        ["id"] = s.Id,
+                        ["label"] = s.Label,
+                        ["command"] = s.Command,
+                        ["workingDir"] = s.WorkingDir,
+                        ["cols"] = s.Cols,
+                        ["rows"] = s.Rows
+                    };
+                }
+                return Results.Text(new JsonArray(nodes).ToJsonString(), "application/json");
             });
 
             // WebSocket endpoint — mirrors existing sessions
