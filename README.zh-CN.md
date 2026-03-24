@@ -23,6 +23,7 @@
 - **Windows ConPTY** — 原生伪控制台集成，可运行任何命令行工具 — PowerShell、cmd、bash、python、node、git 等。
 - **xterm.js 渲染** — 通过 WebView2 承载 xterm.js，使用 Cascadia Code 字体进行完整终端模拟。
 - **Mica 背景** — 原生 Windows 11 半透明云母材质效果。
+- **网页远程终端** — 内置 HTTP/WebSocket 服务器，可在局域网内通过浏览器实时查看和控制任意终端会话。支持可选的令牌认证。移动端友好，提供触屏虚拟按键。
 - **右键菜单集成** — 在资源管理器中右键任意文件夹即可在 CC Pad 中打开。
 - **文件关联** — 双击 `.ccpad-workspace` 文件直接打开。
 
@@ -89,6 +90,22 @@ CCPad.exe my-project.ccpad-workspace
 
 右键点击终端或标签页标题可查看更多选项。
 
+### 网页远程终端
+
+在同一局域网内的任意浏览器中访问你的终端会话：
+
+1. 点击工具栏中的远程终端按钮
+2. 选择局域网地址，可选择是否启用令牌认证
+3. 在其他设备（手机、平板、另一台电脑）上打开显示的 URL
+4. 从侧边栏选择一个会话，即可实时查看和控制
+
+功能特性：
+- **实时镜像** — 与桌面终端显示完全同步
+- **完整键盘输入** — 远程输入命令
+- **触屏控制** — 移动端提供虚拟方向键、退格和回车
+- **会话回放** — 缓存近期终端输出，连接时即时显示
+- **安全** — 可选 16 字节令牌认证
+
 ### 工作区
 
 工作区以 JSON 格式保存完整布局：
@@ -108,13 +125,19 @@ CCPad.exe my-project.ccpad-workspace
 ```
 CCPad/
 ├── App.xaml.cs              # 入口，启动逻辑，右键菜单注册
-├── MainWindow.xaml.cs       # 窗口管理，工作区模式
+├── MainWindow.xaml.cs       # 窗口管理，工作区模式，更新 UI
 ├── SplitHost.xaml.cs        # 二叉分屏树布局引擎
 ├── TabPanel.xaml.cs         # 标签页生命周期，项目菜单
-├── TerminalPane.xaml.cs     # WebView2 + xterm.js 宿主
+├── TerminalPane.xaml.cs     # WebView2 + xterm.js 宿主，会话注册
+├── UpdateChecker.cs         # GitHub 发布检查器，自动更新
 ├── Terminal/
 │   ├── ConPtySession.cs     # Windows ConPTY 进程管理
 │   └── PseudoConsoleApi.cs  # ConPTY Win32 API P/Invoke 绑定
+├── Web/
+│   ├── WebTerminalServer.cs # ASP.NET Core Kestrel HTTP/WebSocket 服务器
+│   ├── WebTerminalSession.cs# 远程镜像 WebSocket 处理器
+│   ├── TerminalSessionRegistry.cs # 会话追踪 + 输出环形缓冲区
+│   └── WebTerminalHtml.cs   # 内嵌网页 UI（含 xterm.js）
 ├── Controls/
 │   └── GridSplitter.cs      # 可拖拽分屏比例控件
 ├── Settings/

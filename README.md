@@ -23,6 +23,7 @@
 - **Windows ConPTY** — Native pseudo-console integration. Runs any CLI tool — PowerShell, cmd, bash, python, node, git, etc.
 - **xterm.js Rendering** — Full terminal emulation via xterm.js hosted in WebView2, with Cascadia Code font.
 - **Mica Backdrop** — Native Windows 11 translucent material.
+- **Web Remote Terminal** — Built-in HTTP/WebSocket server lets you view and control any session from a browser on the same LAN. Optional token authentication. Touch-friendly UI with on-screen keys for mobile devices.
 - **Context Menu Integration** — Right-click any folder in Explorer to open it in CC Pad.
 - **File Association** — Double-click `.ccpad-workspace` files to open them directly.
 
@@ -89,6 +90,22 @@ When launched without arguments, CC Pad auto-detects `.ccpad-workspace` files in
 
 Right-click the terminal or a tab header for additional options.
 
+### Web Remote Terminal
+
+Access your terminal sessions from any browser on the same network:
+
+1. Click the remote terminal button in the toolbar
+2. Select your LAN address and optionally enable token authentication
+3. Open the displayed URL on another device (phone, tablet, another PC)
+4. Select a session from the sidebar to view and control it in real-time
+
+Features:
+- **Live mirroring** — See exactly what's on the desktop terminal
+- **Full keyboard input** — Type commands remotely
+- **Touch controls** — On-screen arrow keys, backspace, and enter for mobile devices
+- **Session replay** — Recent terminal output is buffered for instant display when connecting
+- **Secure** — Optional 16-byte token authentication
+
 ### Workspaces
 
 Workspaces save your complete layout as a JSON file:
@@ -108,13 +125,19 @@ Click the **Projects** button in any tab strip footer to manage pinned directori
 ```
 CCPad/
 ├── App.xaml.cs              # Entry point, startup, context menu registration
-├── MainWindow.xaml.cs       # Window management, workspace mode
+├── MainWindow.xaml.cs       # Window management, workspace mode, update UI
 ├── SplitHost.xaml.cs        # Binary split-tree layout engine
 ├── TabPanel.xaml.cs         # Tab lifecycle, project menu
-├── TerminalPane.xaml.cs     # WebView2 + xterm.js host
+├── TerminalPane.xaml.cs     # WebView2 + xterm.js host, session registration
+├── UpdateChecker.cs         # GitHub release checker, auto-update
 ├── Terminal/
 │   ├── ConPtySession.cs     # Windows ConPTY process management
 │   └── PseudoConsoleApi.cs  # P/Invoke bindings for ConPTY
+├── Web/
+│   ├── WebTerminalServer.cs # ASP.NET Core Kestrel HTTP/WebSocket server
+│   ├── WebTerminalSession.cs# WebSocket handler for remote mirroring
+│   ├── TerminalSessionRegistry.cs # Session tracking + output ring buffer
+│   └── WebTerminalHtml.cs   # Embedded web UI with xterm.js
 ├── Controls/
 │   └── GridSplitter.cs      # Draggable split ratio control
 ├── Settings/
