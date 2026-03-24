@@ -122,6 +122,7 @@ namespace CCPad
             string header = projectName
                 ?? (workingDir != null ? System.IO.Path.GetFileName(workingDir) : null)
                 ?? $"Terminal {_tabCounter}";
+            pane.Label = header;
             var item = new TabViewItem
             {
                 Header = header,

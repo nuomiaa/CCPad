@@ -8,6 +8,7 @@
     <Platforms>x86;x64;ARM64</Platforms>
     <RuntimeIdentifiers>win-x86;win-x64;win-arm64</RuntimeIdentifiers>
     <UseWinUI>true</UseWinUI>
+    <NoWarn>$(NoWarn);NETSDK1206</NoWarn>
     <WinUISDKReferences>false</WinUISDKReferences>
     <EnableMsixTooling>true</EnableMsixTooling>
     <Nullable>enable</Nullable>
@@ -16,13 +17,13 @@
 
     <!-- 程序详情（右键→属性→详细信息） -->
     <Product>CC Pad</Product>
-    <Description>CC Pad - AI 终端模拟器</Description>
+    <Description>CC Pad - Claude Code 多会话工作台</Description>
     <Company>CCPad.dev</Company>
     <Authors>CC Pad</Authors>
     <Copyright>Copyright © 2026 CC Pad</Copyright>
-    <Version>1.0.1</Version>
-    <FileVersion>1.0.1.1</FileVersion>
-    <InformationalVersion>1.0.1</InformationalVersion>
+    <Version>1.0.2</Version>
+    <FileVersion>1.0.2.1</FileVersion>
+    <InformationalVersion>1.0.2</InformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -62,6 +63,10 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.7705" />
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260317003" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
   <!--

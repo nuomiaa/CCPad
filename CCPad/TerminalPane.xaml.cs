@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.Web.WebView2.Core;
 using CCPad.Terminal;
+using CCPad.Web;
 
 namespace CCPad
 {
@@ -21,6 +22,12 @@ namespace CCPad
         private int _cols = 120;
         private int _rows = 30;
         private TaskCompletionSource? _readyTcs;
+
+        /// <summary>Unique ID for this pane, used by Web remote access.</summary>
+        public string PaneId { get; } = Guid.NewGuid().ToString("N")[..8];
+
+        /// <summary>Display label set by the tab host.</summary>
+        public string Label { get; set; } = "";
 
         public event Action? NewTabRequested;
         public event Action? CloseTabRequested;
@@ -125,6 +132,16 @@ namespace CCPad
                 _session = ConPtySession.Start(_command, _cols, _rows, _workingDir);
                 _session.OutputReceived += OnOutput;
                 _session.Exited += OnExited;
+
+                TerminalSessionRegistry.Register(PaneId, new SessionEntry
+                {
+                    Id = PaneId,
+                    Label = Label,
+                    Command = _command,
+                    WorkingDir = _workingDir,
+                    Session = _session
+                });
+                TerminalSessionRegistry.NotifyChanged();
             }
             catch (Exception ex)
             {
@@ -149,6 +166,8 @@ namespace CCPad
         {
             _session = null;
             _awaitingRestart = true;
+            TerminalSessionRegistry.Unregister(PaneId);
+            TerminalSessionRegistry.NotifyChanged();
             SendOutput(Encoding.UTF8.GetBytes(
                 "\r\n\x1b[33m[Process exited — press Enter to restart]\x1b[0m\r\n"));
         }
@@ -252,6 +271,8 @@ namespace CCPad
         {
             if (_disposed) return;
             _disposed = true;
+            TerminalSessionRegistry.Unregister(PaneId);
+            TerminalSessionRegistry.NotifyChanged();
             if (_session != null)
             {
                 _session.OutputReceived -= OnOutput;

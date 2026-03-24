@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using CCPad.Settings;
+using CCPad.Web;
 using Microsoft.UI;
 using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Windowing;
@@ -17,6 +18,7 @@ namespace CCPad
         private string? _currentWorkspaceFile;
 
         private ReleaseInfo? _releaseInfo;
+        private WebTerminalServer? _webServer;
 
         public MainWindow()
         {
@@ -281,6 +283,14 @@ namespace CCPad
             updateItem.Click += async (_, _) => await CheckForUpdateAsync(silent: false);
             AboutFlyout.Items.Add(updateItem);
 
+            _remoteMenuItem = new MenuFlyoutItem
+            {
+                Text = "远程终端",
+                Icon = new FontIcon { Glyph = "\uE774" }
+            };
+            _remoteMenuItem.Click += (_, _) => OnRemoteTerminalClick();
+            AboutFlyout.Items.Add(_remoteMenuItem);
+
             AboutFlyout.Items.Add(new MenuFlyoutSeparator());
 
             var githubItem = new MenuFlyoutItem
@@ -441,6 +451,168 @@ namespace CCPad
             Application.Current.Exit();
         }
 
+        // ── Web server ────────────────────────────────────────────────────
+
+        private MenuFlyoutItem? _remoteMenuItem;
+
+        private async void OnRemoteTerminalClick()
+        {
+            if (_webServer?.IsRunning == true)
+            {
+                await ShowWebServerInfoDialog();
+                return;
+            }
+
+            // Collect LAN addresses
+            var addresses = WebTerminalServer.GetLanAddresses();
+            if (addresses.Count == 0) addresses.Add("localhost");
+
+            var tokenCheck = new CheckBox { Content = "启用 Token 鉴权", IsChecked = false };
+
+            var addressCombo = new ComboBox { Width = 300 };
+            foreach (var addr in addresses) addressCombo.Items.Add(addr);
+            addressCombo.SelectedIndex = 0;
+
+            var panel = new StackPanel { Spacing = 8 };
+            panel.Children.Add(new TextBlock
+            {
+                Text = "启动后，同一局域网内的设备可通过浏览器访问本机终端。",
+                TextWrapping = TextWrapping.Wrap
+            });
+            panel.Children.Add(new TextBlock { Text = "监听地址", FontSize = 12, Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 150, 150, 150)) });
+            panel.Children.Add(addressCombo);
+            panel.Children.Add(tokenCheck);
+
+            var dlg = new ContentDialog
+            {
+                Title = "启动远程终端",
+                Content = panel,
+                PrimaryButtonText = "启动",
+                CloseButtonText = "取消",
+                XamlRoot = Content.XamlRoot
+            };
+
+            if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
+
+            _webServer ??= new WebTerminalServer();
+            _webServer.UseToken = tokenCheck.IsChecked == true;
+            _webServer.Host = addressCombo.SelectedItem?.ToString() ?? "localhost";
+
+            try
+            {
+                await _webServer.StartAsync(9220);
+                UpdateRemoteMenuItem(true);
+                await ShowWebServerStartedDialog();
+            }
+            catch (Exception ex)
+            {
+                var errDlg = new ContentDialog
+                {
+                    Title = "启动失败",
+                    Content = $"无法启动远程终端服务：{ex.Message}",
+                    CloseButtonText = "确定",
+                    XamlRoot = Content.XamlRoot
+                };
+                await errDlg.ShowAsync();
+            }
+        }
+
+        private async System.Threading.Tasks.Task ShowWebServerStartedDialog()
+        {
+            var url = _webServer!.GetAccessUrl();
+            var panel = new StackPanel { Spacing = 8 };
+            panel.Children.Add(new TextBlock { Text = "远程终端已启动！", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
+
+            var urlBox = new TextBox
+            {
+                Text = url,
+                IsReadOnly = true,
+                FontFamily = new FontFamily("Cascadia Code, Consolas, monospace"),
+                FontSize = 13
+            };
+            panel.Children.Add(urlBox);
+
+            if (_webServer.Token != null)
+            {
+                panel.Children.Add(new TextBlock
+                {
+                    Text = "Token 已启用，请勿将链接泄露给他人。",
+                    FontSize = 12,
+                    Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 150, 150, 150))
+                });
+            }
+
+            var dlg = new ContentDialog
+            {
+                Title = "远程终端",
+                Content = panel,
+                PrimaryButtonText = "复制链接",
+                SecondaryButtonText = "在浏览器中打开",
+                CloseButtonText = "确定",
+                XamlRoot = Content.XamlRoot
+            };
+
+            var result = await dlg.ShowAsync();
+            if (result == ContentDialogResult.Primary)
+            {
+                var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                dp.SetText(url);
+                Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dp);
+            }
+            else if (result == ContentDialogResult.Secondary)
+            {
+                await Windows.System.Launcher.LaunchUriAsync(new Uri(url));
+            }
+        }
+
+        private async System.Threading.Tasks.Task ShowWebServerInfoDialog()
+        {
+            var url = _webServer!.GetAccessUrl();
+            var panel = new StackPanel { Spacing = 8 };
+            panel.Children.Add(new TextBlock
+            {
+                Text = $"远程终端正在运行  |  连接客户端: {_webServer.ClientCount}",
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+            });
+
+            var urlBox = new TextBox
+            {
+                Text = url,
+                IsReadOnly = true,
+                FontFamily = new FontFamily("Cascadia Code, Consolas, monospace"),
+                FontSize = 13
+            };
+            panel.Children.Add(urlBox);
+
+            var dlg = new ContentDialog
+            {
+                Title = "远程终端",
+                Content = panel,
+                PrimaryButtonText = "停止服务",
+                SecondaryButtonText = "在浏览器中打开",
+                CloseButtonText = "确定",
+                XamlRoot = Content.XamlRoot
+            };
+
+            var result = await dlg.ShowAsync();
+            if (result == ContentDialogResult.Primary)
+            {
+                await _webServer.StopAsync();
+                _webServer = null;
+                UpdateRemoteMenuItem(false);
+            }
+            else if (result == ContentDialogResult.Secondary)
+            {
+                await Windows.System.Launcher.LaunchUriAsync(new Uri(url));
+            }
+        }
+
+        private void UpdateRemoteMenuItem(bool running)
+        {
+            if (_remoteMenuItem == null) return;
+            _remoteMenuItem.Text = running ? "远程终端 (运行中)" : "远程终端";
+        }
+
         // ── Auto-save on close (only if in workspace mode) ───────────────
 
         private void OnWindowClosed(object sender, WindowEventArgs args)
@@ -460,6 +632,7 @@ namespace CCPad
 
                 _splitHost.DisposeAll();
             }
+            _webServer?.Dispose();
         }
     }
 }
