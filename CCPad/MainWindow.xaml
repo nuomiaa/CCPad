@@ -11,6 +11,19 @@
     <Grid>
         <Grid x:Name="RootGrid"/>
 
+        <!-- Update button — global, bottom-right, left of About -->
+        <Button x:Name="UpdateButton"
+                HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                Margin="0,0,58,9"
+                Padding="6"
+                ToolTipService.ToolTip="检查更新"
+                Background="Transparent"
+                BorderBrush="Transparent"
+                Visibility="Collapsed"
+                Click="OnUpdateButtonClick">
+            <FontIcon Glyph="&#xECC5;" FontSize="14" Foreground="#4CC2FF"/>
+        </Button>
+
         <!-- About button — global, bottom-right -->
         <DropDownButton x:Name="AboutButton"
                         HorizontalAlignment="Right" VerticalAlignment="Bottom"

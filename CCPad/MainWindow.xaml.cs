@@ -16,6 +16,8 @@ namespace CCPad
         private SplitHost? _splitHost;
         private string? _currentWorkspaceFile;
 
+        private ReleaseInfo? _releaseInfo;
+
         public MainWindow()
         {
             InitializeComponent();
@@ -23,6 +25,7 @@ namespace CCPad
             Activated += OnFirstActivated;
             Closed += OnWindowClosed;
             InitAboutMenu();
+            _ = CheckForUpdateAsync(silent: true);
         }
 
         private async void OnFirstActivated(object sender, WindowActivatedEventArgs e)
@@ -263,6 +266,14 @@ namespace CCPad
             };
             AboutFlyout.Items.Add(aboutItem);
 
+            var updateItem = new MenuFlyoutItem
+            {
+                Text = "检查更新",
+                Icon = new FontIcon { Glyph = "\uECC5" }
+            };
+            updateItem.Click += async (_, _) => await CheckForUpdateAsync(silent: false);
+            AboutFlyout.Items.Add(updateItem);
+
             AboutFlyout.Items.Add(new MenuFlyoutSeparator());
 
             var githubItem = new MenuFlyoutItem
@@ -286,6 +297,141 @@ namespace CCPad
                 await Windows.System.Launcher.LaunchUriAsync(new Uri("https://ccpad.dev"));
             };
             AboutFlyout.Items.Add(websiteItem);
+        }
+
+        // ── Update check ────────────────────────────────────────────────
+
+        private async System.Threading.Tasks.Task CheckForUpdateAsync(bool silent)
+        {
+            var info = await UpdateChecker.CheckAsync();
+            if (info != null)
+            {
+                _releaseInfo = info;
+                DispatcherQueue.TryEnqueue(() => UpdateButton.Visibility = Visibility.Visible);
+
+                if (!silent)
+                    DispatcherQueue.TryEnqueue(() => ShowUpdateDialog(info));
+            }
+            else if (!silent)
+            {
+                DispatcherQueue.TryEnqueue(async () =>
+                {
+                    var dlg = new ContentDialog
+                    {
+                        Title = "检查更新",
+                        Content = $"当前已是最新版本 v{UpdateChecker.GetCurrentVersion()}",
+                        CloseButtonText = "确定",
+                        XamlRoot = Content.XamlRoot
+                    };
+                    await dlg.ShowAsync();
+                });
+            }
+        }
+
+        private async void OnUpdateButtonClick(object sender, RoutedEventArgs e)
+        {
+            if (_releaseInfo != null)
+                ShowUpdateDialog(_releaseInfo);
+            else
+                await CheckForUpdateAsync(silent: false);
+        }
+
+        private async void ShowUpdateDialog(ReleaseInfo info)
+        {
+            var hasAsset = info.AssetUrl != null;
+            var dlg = new ContentDialog
+            {
+                Title = "发现新版本",
+                Content = $"新版本 v{info.Version} 已发布，当前版本 v{UpdateChecker.GetCurrentVersion()}。",
+                PrimaryButtonText = hasAsset ? "下载并安装" : "前往下载页",
+                CloseButtonText = "稍后",
+                XamlRoot = Content.XamlRoot
+            };
+
+            if (await dlg.ShowAsync() != ContentDialogResult.Primary)
+                return;
+
+            if (!hasAsset)
+            {
+                await Windows.System.Launcher.LaunchUriAsync(
+                    new Uri(UpdateChecker.ReleasesPageUrl));
+                return;
+            }
+
+            // Show progress dialog
+            var cts = new System.Threading.CancellationTokenSource();
+            var progressBar = new ProgressBar
+            {
+                Minimum = 0,
+                Maximum = 100,
+                Value = 0,
+                Width = 300,
+                Margin = new Thickness(0, 12, 0, 0)
+            };
+            var statusText = new TextBlock { Text = $"正在下载 {info.AssetName}..." };
+            var panel = new StackPanel();
+            panel.Children.Add(statusText);
+            panel.Children.Add(progressBar);
+
+            var progressDlg = new ContentDialog
+            {
+                Title = "下载更新",
+                Content = panel,
+                CloseButtonText = "取消",
+                XamlRoot = Content.XamlRoot
+            };
+            progressDlg.CloseButtonClick += (_, _) => cts.Cancel();
+
+            // Start download in background, show dialog concurrently
+            string? localPath = null;
+            Exception? downloadError = null;
+            var downloadTask = System.Threading.Tasks.Task.Run(async () =>
+            {
+                try
+                {
+                    var progress = new Progress<int>(pct =>
+                        DispatcherQueue.TryEnqueue(() => progressBar.Value = pct));
+                    localPath = await UpdateChecker.DownloadAssetAsync(
+                        info.AssetUrl!, info.AssetName!, progress, cts.Token);
+                }
+                catch (Exception ex)
+                {
+                    downloadError = ex;
+                }
+            });
+
+            // Close progress dialog automatically when download finishes
+            _ = downloadTask.ContinueWith(_ =>
+                DispatcherQueue.TryEnqueue(() => progressDlg.Hide()),
+                System.Threading.Tasks.TaskScheduler.Default);
+
+            await progressDlg.ShowAsync();
+            await downloadTask;
+
+            if (cts.IsCancellationRequested)
+                return;
+
+            if (downloadError != null || localPath == null)
+            {
+                var errDlg = new ContentDialog
+                {
+                    Title = "下载失败",
+                    Content = "下载更新时出错，是否前往下载页面手动下载？",
+                    PrimaryButtonText = "前往下载页",
+                    CloseButtonText = "关闭",
+                    XamlRoot = Content.XamlRoot
+                };
+                if (await errDlg.ShowAsync() == ContentDialogResult.Primary)
+                {
+                    await Windows.System.Launcher.LaunchUriAsync(
+                        new Uri(UpdateChecker.ReleasesPageUrl));
+                }
+                return;
+            }
+
+            // Launch installer and exit
+            UpdateChecker.LaunchInstaller(localPath);
+            Application.Current.Exit();
         }
 
         // ── Auto-save on close (only if in workspace mode) ───────────────
