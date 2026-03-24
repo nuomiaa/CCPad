@@ -473,6 +473,22 @@ namespace CCPad
             foreach (var addr in addresses) addressCombo.Items.Add(addr);
             addressCombo.SelectedIndex = 0;
 
+            var portBox = new NumberBox
+            {
+                Value = 9220,
+                Minimum = 1,
+                Maximum = 65535,
+                SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact,
+                Width = 150,
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
+
+            var autoIncrementCheck = new CheckBox
+            {
+                Content = "端口被占用时自动递增",
+                IsChecked = true
+            };
+
             var panel = new StackPanel { Spacing = 8 };
             panel.Children.Add(new TextBlock
             {
@@ -481,6 +497,9 @@ namespace CCPad
             });
             panel.Children.Add(new TextBlock { Text = "监听地址", FontSize = 12, Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 150, 150, 150)) });
             panel.Children.Add(addressCombo);
+            panel.Children.Add(new TextBlock { Text = "端口", FontSize = 12, Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 150, 150, 150)), Margin = new Thickness(0, 8, 0, 0) });
+            panel.Children.Add(portBox);
+            panel.Children.Add(autoIncrementCheck);
             panel.Children.Add(tokenCheck);
 
             var dlg = new ContentDialog
@@ -494,13 +513,28 @@ namespace CCPad
 
             if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
 
+            var port = (int)portBox.Value;
+            var autoIncrement = autoIncrementCheck.IsChecked == true;
+
             _webServer ??= new WebTerminalServer();
             _webServer.UseToken = tokenCheck.IsChecked == true;
             _webServer.Host = addressCombo.SelectedItem?.ToString() ?? "localhost";
 
             try
             {
-                await _webServer.StartAsync(9220);
+                var (success, actualPort, error) = await _webServer.StartAsync(port, autoIncrement);
+                if (!success)
+                {
+                    var errDlg = new ContentDialog
+                    {
+                        Title = "启动失败",
+                        Content = $"无法启动远程终端服务：{error}",
+                        CloseButtonText = "确定",
+                        XamlRoot = Content.XamlRoot
+                    };
+                    await errDlg.ShowAsync();
+                    return;
+                }
                 UpdateRemoteMenuItem(true);
                 await ShowWebServerStartedDialog();
             }

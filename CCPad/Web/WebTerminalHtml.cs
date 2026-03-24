@@ -7,11 +7,24 @@ namespace CCPad.Web
 <html>
 <head>
   <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="format-detection" content="telephone=no"/>
   <title>CC Pad — Remote Terminal</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; background: #0c0c0c; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html { touch-action: manipulation; height: 100%; }
+    html, body {
+      width: 100%; height: 100%;
+      background: #0c0c0c; overflow: hidden;
+      font-family: 'Segoe UI', sans-serif;
+      overscroll-behavior: none;
+    }
+    /* Use dvh for mobile browsers with dynamic toolbars */
+    @supports (height: 100dvh) {
+      html, body { height: 100dvh; }
+    }
 
     #app { display: flex; width: 100%; height: 100%; overflow: hidden; }
 
@@ -57,16 +70,17 @@ namespace CCPad.Web
     #terminal-wrap {
       flex: 1; min-width: 0;
       display: flex; flex-direction: column;
-      height: 100%; overflow: hidden;
+      overflow: hidden;
     }
     #terminal {
       flex: 1;
       overflow: hidden;
+      height: 0; /* Important: allows flex to control height */
     }
 
     /* Status bar — fixed height at bottom */
     #status-bar {
-      height: 26px; min-height: 26px; line-height: 26px;
+      height: 26px; line-height: 26px;
       background: #1e1e1e; color: #888;
       font-size: 12px; padding: 0 12px;
       display: flex; justify-content: space-between; align-items: center;
@@ -75,8 +89,10 @@ namespace CCPad.Web
     .connected { color: #aaa; }
     .disconnected { color: #666; }
     .connecting { color: #888; }
+    #status-brand { color: #555; text-decoration: none; transition: color 0.2s; }
+    #status-brand:hover { color: #888; }
 
-    /* Touch pad — fixed bottom-right, container transparent to touch */
+    /* Touch pad position */
     #touch-pad {
       position: fixed; right: 16px; bottom: 36px; z-index: 20;
       opacity: 0.4; transition: opacity 0.2s;
@@ -110,6 +126,33 @@ namespace CCPad.Web
     ::-webkit-scrollbar-track { background: #1e1e1e; }
     ::-webkit-scrollbar-thumb { background: #424242; border-radius: 4px; }
     ::-webkit-scrollbar-thumb:hover { background: #555; }
+
+    /* Mobile styles */
+    @media screen and (max-width: 600px) {
+      #sidebar { width: 180px; min-width: 180px; }
+      #sidebar.collapsed { margin-left: -180px; }
+      #sidebar-header { padding: 10px 12px; font-size: 12px; }
+      .session-item { padding: 8px 12px; }
+      .session-label { font-size: 12px; }
+      .session-dir { font-size: 10px; }
+      #status-bar { height: 24px; min-height: 24px; line-height: 24px; font-size: 11px; padding: 0 8px; }
+      #dpad { grid-template-columns: 40px 40px 40px; grid-template-rows: 40px 40px; gap: 2px; }
+      .dpad-btn { width: 40px; height: 40px; font-size: 16px; }
+      .dpad-btn.bksp, .dpad-btn.enter { font-size: 13px; }
+      #touch-pad { right: 8px; bottom: 32px; }
+    }
+
+    @media screen and (max-width: 400px) {
+      #sidebar { width: 160px; min-width: 160px; }
+      #sidebar.collapsed { margin-left: -160px; }
+      #toggle-btn { left: 4px; top: 4px; font-size: 12px; padding: 3px 6px; }
+    }
+
+    /* Small screen - auto collapse sidebar */
+    @media screen and (max-width: 480px) {
+      #sidebar:not(.user-toggled) { margin-left: -220px; }
+      #sidebar:not(.user-toggled).collapsed ~ #toggle-btn { display: block; }
+    }
   </style>
   <link rel="stylesheet" href="/xterm/xterm.css"/>
 </head>
@@ -127,6 +170,7 @@ namespace CCPad.Web
       <div id="terminal"></div>
       <div id="status-bar">
         <span id="status">Connecting...</span>
+        <a id="status-brand" href="https://ccpad.dev" target="_blank" rel="noopener" style="color: #fff;">CCPAD.DEV</a>
         <span id="session-info"></span>
       </div>
     </div>
@@ -167,10 +211,46 @@ namespace CCPad.Web
 
     function setStatus(text, cls) { statusEl.textContent = text; statusEl.className = cls; }
 
+    const SIDEBAR_STATE_KEY = 'ccpad_sidebar_collapsed';
+
     function toggleSidebar() {
-      document.getElementById('sidebar').classList.toggle('collapsed');
+      const sidebar = document.getElementById('sidebar');
+      sidebar.classList.toggle('collapsed');
+      sidebar.classList.add('user-toggled');
+      const isCollapsed = sidebar.classList.contains('collapsed');
+      try { localStorage.setItem(SIDEBAR_STATE_KEY, isCollapsed ? '1' : '0'); } catch {}
       if (!lockedCols) setTimeout(() => fit.fit(), 250);
     }
+
+    function restoreSidebarState() {
+      const sidebar = document.getElementById('sidebar');
+      try {
+        const saved = localStorage.getItem(SIDEBAR_STATE_KEY);
+        if (saved === '1') {
+          sidebar.classList.add('collapsed');
+          sidebar.classList.add('user-toggled');
+        }
+      } catch {}
+    }
+
+    restoreSidebarState();
+
+    // Prevent double-tap zoom on mobile
+    let lastTouchEnd = 0;
+    document.addEventListener('touchend', (e) => {
+      const now = Date.now();
+      if (now - lastTouchEnd <= 300) {
+        e.preventDefault();
+      }
+      lastTouchEnd = now;
+    }, { passive: false });
+
+    // Prevent pinch zoom
+    document.addEventListener('touchmove', (e) => {
+      if (e.touches.length > 1) {
+        e.preventDefault();
+      }
+    }, { passive: false });
 
     async function refreshSessions() {
       try {
@@ -243,10 +323,12 @@ namespace CCPad.Web
           term.focus();
         } else if (msg.type === 'size') {
           lockedCols = msg.cols;
-          lockedRows = msg.rows;
-          term.resize(msg.cols, msg.rows);
+          lockedRows = 0; // Don't lock rows, let terminal fill available height
+          // Only resize cols, let fit() determine rows based on available height
+          const currentRows = term.rows;
+          term.resize(msg.cols, currentRows);
           const s = sessions.find(x => x.id === currentSessionId);
-          sessionInfoEl.textContent = (s ? (s.label || s.command) : '') + ` [${msg.cols}x${msg.rows}]`;
+          sessionInfoEl.textContent = (s ? (s.label || s.command) : '') + ` [${msg.cols}x${currentRows}]`;
         } else if (msg.type === 'replay') {
           term.reset();
           const bin = atob(msg.data);
@@ -276,7 +358,15 @@ namespace CCPad.Web
     });
 
     new ResizeObserver(() => {
-      if (!lockedCols) fit.fit();
+      if (!lockedCols) {
+        fit.fit();
+      } else {
+        // Keep locked cols, but allow rows to adjust to available height
+        const dims = fit.proposeDimensions();
+        if (dims && dims.rows) {
+          term.resize(lockedCols, dims.rows);
+        }
+      }
     }).observe(document.getElementById('terminal'));
     term.focus();
     connect();

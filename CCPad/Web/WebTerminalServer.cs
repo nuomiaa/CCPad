@@ -33,12 +33,41 @@ namespace CCPad.Web
         public bool IsRunning => _app != null;
         public bool UseToken { get; set; } = false;
         public string Host { get; set; } = "localhost";
+        public int MaxPortRetries { get; set; } = 10;
 
         public event Action<string>? StatusChanged;
 
-        public async Task StartAsync(int port = 9220)
+        public static bool IsPortAvailable(int port)
         {
-            if (_app != null) return;
+            try
+            {
+                using var listener = new TcpListener(IPAddress.Any, port);
+                listener.Start();
+                listener.Stop();
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public async Task<(bool Success, int ActualPort, string? Error)> StartAsync(int port = 9220, bool autoIncrement = true)
+        {
+            if (_app != null) return (true, Port, null);
+
+            // Find available port
+            int actualPort = port;
+            int attempts = 0;
+            while (!IsPortAvailable(actualPort))
+            {
+                if (!autoIncrement || attempts >= MaxPortRetries)
+                {
+                    return (false, port, $"端口 {port} 已被占用" + (autoIncrement ? $"，尝试了 {MaxPortRetries} 个端口均失败" : ""));
+                }
+                actualPort++;
+                attempts++;
+            }
 
             Token = UseToken ? GenerateToken() : null;
             _cts = new CancellationTokenSource();
@@ -46,7 +75,7 @@ namespace CCPad.Web
             var builder = WebApplication.CreateSlimBuilder();
             builder.WebHost.ConfigureKestrel(opts =>
             {
-                opts.Listen(IPAddress.Any, port);
+                opts.Listen(IPAddress.Any, actualPort);
             });
             builder.Logging.ClearProviders();
 
@@ -144,6 +173,7 @@ namespace CCPad.Web
             }
 
             StatusChanged?.Invoke($"Server started on port {Port}");
+            return (true, Port, null);
         }
 
         public async Task StopAsync()
