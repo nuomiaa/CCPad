@@ -220,6 +220,7 @@ namespace CCPad.Web
       const isCollapsed = sidebar.classList.contains('collapsed');
       try { localStorage.setItem(SIDEBAR_STATE_KEY, isCollapsed ? '1' : '0'); } catch {}
       if (!lockedCols) setTimeout(() => fit.fit(), 250);
+      else setTimeout(() => term.resize(lockedCols, lockedRows || term.rows), 250);
     }
 
     function restoreSidebarState() {
@@ -323,12 +324,10 @@ namespace CCPad.Web
           term.focus();
         } else if (msg.type === 'size') {
           lockedCols = msg.cols;
-          lockedRows = 0; // Don't lock rows, let terminal fill available height
-          // Only resize cols, let fit() determine rows based on available height
-          const currentRows = term.rows;
-          term.resize(msg.cols, currentRows);
+          lockedRows = msg.rows;
+          term.resize(msg.cols, msg.rows);
           const s = sessions.find(x => x.id === currentSessionId);
-          sessionInfoEl.textContent = (s ? (s.label || s.command) : '') + ` [${msg.cols}x${currentRows}]`;
+          sessionInfoEl.textContent = (s ? (s.label || s.command) : '') + ` [${msg.cols}x${msg.rows}]`;
         } else if (msg.type === 'replay') {
           term.reset();
           const bin = atob(msg.data);
@@ -361,11 +360,8 @@ namespace CCPad.Web
       if (!lockedCols) {
         fit.fit();
       } else {
-        // Keep locked cols, but allow rows to adjust to available height
-        const dims = fit.proposeDimensions();
-        if (dims && dims.rows) {
-          term.resize(lockedCols, dims.rows);
-        }
+        // Keep locked cols and rows to match desktop terminal exactly
+        term.resize(lockedCols, lockedRows || term.rows);
       }
     }).observe(document.getElementById('terminal'));
     term.focus();

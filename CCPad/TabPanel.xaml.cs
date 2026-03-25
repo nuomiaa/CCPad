@@ -55,6 +55,15 @@ namespace CCPad
                 pane.FocusTerminal();
         }
 
+        public void RefitAllTerminals()
+        {
+            foreach (var tab in Tabs.TabItems)
+            {
+                if (tab is TabViewItem tvi && tvi.Content is TerminalPane pane)
+                    pane.Refit();
+            }
+        }
+
         // ── Tab management ──────────────────────────────────────────────
 
         private async Task AddNewTab(string? projectName = null, string? workingDir = null)

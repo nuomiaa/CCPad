@@ -267,6 +267,16 @@ namespace CCPad
                 await WebView.CoreWebView2.ExecuteScriptAsync("term.focus()");
         }
 
+        /// <summary>
+        /// Force xterm.js to recalculate dimensions. Call after the WebView's
+        /// container size changes due to split-tree rebuilds.
+        /// </summary>
+        public async void Refit()
+        {
+            if (_disposed || !_ready || WebView.CoreWebView2 == null) return;
+            try { await WebView.CoreWebView2.ExecuteScriptAsync("fit.fit()"); } catch { }
+        }
+
         public void Dispose()
         {
             if (_disposed) return;
@@ -289,8 +299,15 @@ namespace CCPad
               <meta charset="utf-8"/>
               <style>
                 * { margin: 0; padding: 0; box-sizing: border-box; }
-                html, body { width: 100%; height: 100%; background: #0c0c0c; overflow: hidden; }
+                html, body { width: 100%; height: 100%; background: #0c0c0c; overflow: clip; }
                 #terminal { width: 100%; height: 100%; overflow: hidden; }
+                /* Keep the IME helper textarea inside the viewport so Chromium
+                   doesn't shift the page trying to scroll it into view. */
+                .xterm .xterm-helper-textarea {
+                  position: fixed !important;
+                  left: 0 !important;
+                  top: 0 !important;
+                }
                 ::-webkit-scrollbar { width: 10px; }
                 ::-webkit-scrollbar-track { background: #1e1e1e; }
                 ::-webkit-scrollbar-thumb { background: #424242; border-radius: 5px; }

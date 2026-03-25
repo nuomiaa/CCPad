@@ -214,6 +214,14 @@ namespace CCPad
             RootGrid.Children.Clear();
             var element = BuildLayout(_root);
             RootGrid.Children.Add(element);
+
+            // After the layout pass settles, force all terminals to recalculate
+            // their dimensions. Without this, existing panes keep stale sizes
+            // after a split because WebView2 doesn't immediately reflect the new
+            // XAML container size to the internal browser viewport.
+            DispatcherQueue.TryEnqueue(
+                Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+                () => ForEachPanel(_root, p => p.RefitAllTerminals()));
         }
 
         private static void DetachPanels(SplitNode node)
