@@ -197,6 +197,8 @@ namespace CCPad.Web
     const sessionListEl = document.getElementById('session-list');
     let ws, currentSessionId = null, sessions = [];
     let lockedCols = 0, lockedRows = 0;
+    let heartbeatTimer = null, lastMsgTime = 0, reconnectDelay = 1000;
+    let reconnectTimer = null, pongTimer = null;
 
     const term = new Terminal({
       fontFamily: "'Cascadia Code', 'Cascadia Mono', Consolas, monospace",
@@ -295,23 +297,59 @@ namespace CCPad.Web
       term.focus();
     }
 
+    function clearTimers() {
+      if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+      if (pongTimer) { clearTimeout(pongTimer); pongTimer = null; }
+    }
+
+    function scheduleReconnect(delay) {
+      clearTimers();
+      setStatus('Disconnected — reconnecting...', 'disconnected');
+      reconnectTimer = setTimeout(() => { reconnectTimer = null; connect(); }, delay);
+    }
+
+    function forceReconnect() {
+      clearTimers();
+      if (ws) { try { ws.onclose = null; ws.close(); } catch {} ws = null; }
+      reconnectDelay = 1000;
+      connect();
+    }
+
     function connect() {
+      clearTimers();
       const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
       ws = new WebSocket(`${proto}//${location.host}/ws?token=${TOKEN}`);
       setStatus('Connecting...', 'connecting');
 
       ws.onopen = () => {
         setStatus('Connected', 'connected');
+        reconnectDelay = 1000;
+        lastMsgTime = Date.now();
+
+        // Start heartbeat: ping every 15s, check for stale connection every 20s
+        heartbeatTimer = setInterval(() => {
+          if (!ws || ws.readyState !== WebSocket.OPEN) return;
+          // If no message received in 25s, connection is likely dead
+          if (Date.now() - lastMsgTime > 25000) {
+            forceReconnect();
+            return;
+          }
+          ws.send(JSON.stringify({ type: 'ping' }));
+        }, 15000);
+
         refreshSessions().then(() => {
-          if (sessions.length > 0 && !currentSessionId) {
-            attachSession(sessions[0].id);
-          } else if (currentSessionId) {
+          if (currentSessionId) {
+            term.reset();
             ws.send(JSON.stringify({ type: 'attach', sessionId: currentSessionId }));
+          } else if (sessions.length > 0) {
+            attachSession(sessions[0].id);
           }
         });
       };
 
       ws.onmessage = (e) => {
+        lastMsgTime = Date.now();
         const msg = JSON.parse(e.data);
         if (msg.type === 'output') {
           const bin = atob(msg.data);
@@ -334,17 +372,36 @@ namespace CCPad.Web
           const bytes = new Uint8Array(bin.length);
           for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
           term.write(bytes);
+        } else if (msg.type === 'pong') {
+          // Heartbeat response received, connection is alive
         } else if (msg.type === 'error') {
           term.write('\r\n\x1b[31m' + (msg.message || 'Error') + '\x1b[0m\r\n');
         }
       };
 
       ws.onclose = () => {
-        setStatus('Disconnected — reconnecting...', 'disconnected');
-        setTimeout(connect, 2000);
+        clearTimers();
+        reconnectDelay = Math.min(reconnectDelay * 1.5, 10000);
+        scheduleReconnect(reconnectDelay);
       };
-      ws.onerror = () => ws.close();
+      ws.onerror = () => { try { ws.close(); } catch {} };
     }
+
+    // Reconnect immediately when page becomes visible (mobile resume)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible') return;
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        forceReconnect();
+      } else {
+        // Connection appears open — verify with a ping
+        lastMsgTime = Date.now();
+        try { ws.send(JSON.stringify({ type: 'ping' })); } catch { forceReconnect(); return; }
+        pongTimer = setTimeout(() => {
+          // No pong received in 3s, connection is stale
+          if (Date.now() - lastMsgTime > 2500) forceReconnect();
+        }, 3000);
+      }
+    });
 
     function sendKey(seq) {
       if (ws && ws.readyState === WebSocket.OPEN)

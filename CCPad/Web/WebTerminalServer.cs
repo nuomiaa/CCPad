@@ -139,7 +139,10 @@ namespace CCPad.Web
                     return;
                 }
 
-                var ws = await ctx.WebSockets.AcceptWebSocketAsync();
+                var ws = await ctx.WebSockets.AcceptWebSocketAsync(new WebSocketAcceptContext
+                {
+                    KeepAliveInterval = TimeSpan.FromSeconds(30)
+                });
                 var client = new WebTerminalSession();
                 var clientId = Guid.NewGuid().ToString("N")[..8];
                 _clients[clientId] = client;

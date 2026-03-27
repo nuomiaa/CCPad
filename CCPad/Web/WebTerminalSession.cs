@@ -68,6 +68,10 @@ namespace CCPad.Web
                         _entry?.WriteInput(data);
                         break;
 
+                    case "ping":
+                        _ = SendAsync("{\"type\":\"pong\"}");
+                        break;
+
                     case "resize":
                         // Resize is intentionally NOT forwarded to the desktop session
                         // because it would affect the desktop user's terminal size.
