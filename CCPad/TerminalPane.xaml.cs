@@ -312,11 +312,38 @@ namespace CCPad
                 ::-webkit-scrollbar-track { background: #1e1e1e; }
                 ::-webkit-scrollbar-thumb { background: #424242; border-radius: 5px; }
                 ::-webkit-scrollbar-thumb:hover { background: #555; }
+                #auto-confirm-btn {
+                  position: fixed;
+                  left: 6px;
+                  bottom: 6px;
+                  z-index: 9999;
+                  background: rgba(50, 50, 50, 0.7);
+                  color: #888;
+                  border: 1px solid #555;
+                  border-radius: 4px;
+                  padding: 2px 8px;
+                  font-size: 11px;
+                  font-family: 'Cascadia Code', 'Cascadia Mono', Consolas, monospace;
+                  cursor: pointer;
+                  user-select: none;
+                  transition: all 0.15s;
+                  opacity: 0.5;
+                }
+                #auto-confirm-btn:hover { opacity: 1; }
+                #auto-confirm-btn.active {
+                  background: rgba(0, 120, 80, 0.8);
+                  color: #4fv4a0;
+                  color: #4feba0;
+                  border-color: #2a9;
+                  opacity: 0.85;
+                }
+                #auto-confirm-btn.active:hover { opacity: 1; }
               </style>
               <link rel="stylesheet" href="https://xterm.local/xterm.css"/>
             </head>
             <body>
               <div id="terminal"></div>
+              <button id="auto-confirm-btn" title="Auto Confirm (自动回车)">Auto ⏎</button>
               <script src="https://xterm.local/xterm.js"></script>
               <script src="https://xterm.local/xterm-addon-fit.js"></script>
               <script>
@@ -333,6 +360,36 @@ namespace CCPad
                 term.loadAddon(fit);
                 term.open(document.getElementById('terminal'));
                 fit.fit();
+
+                /* ── Auto-confirm logic ── */
+                let autoConfirm = false;
+                let autoConfirmTimer = null;
+                // Rolling buffer of recent output text for pattern matching
+                let recentOutput = '';
+                const ACBtn = document.getElementById('auto-confirm-btn');
+
+                ACBtn.addEventListener('click', () => {
+                  autoConfirm = !autoConfirm;
+                  ACBtn.classList.toggle('active', autoConfirm);
+                  recentOutput = '';
+                  term.focus();
+                });
+
+                const confirmHints = ['Do you want to proceed?','Are you sure?','Continue?','Proceed?','是否继续'];
+
+                function checkAutoConfirm() {
+                  if (!autoConfirm) return;
+                  const lower = recentOutput.toLowerCase();
+                  if (!confirmHints.some(h => lower.includes(h.toLowerCase())))  return;
+                  if (autoConfirmTimer) clearTimeout(autoConfirmTimer);
+                  autoConfirmTimer = setTimeout(() => {
+                    if (autoConfirm)
+                      window.chrome.webview.postMessage(JSON.stringify({ type: 'input', data: '\r' }));
+                    autoConfirmTimer = null;
+                  }, 300);
+                  recentOutput = '';
+                }
+                /* ── End auto-confirm ── */
 
                 term.attachCustomKeyEventHandler(e => {
                   if (e.type !== 'keydown') return true;
@@ -403,6 +460,17 @@ namespace CCPad
                     const bytes = new Uint8Array(bin.length);
                     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
                     term.write(bytes);
+
+                    // Feed plain text into auto-confirm buffer
+                    if (autoConfirm) {
+                      // Strip ANSI escape sequences for pattern matching
+                      const text = bin.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
+                                      .replace(/\x1b\][^\x07]*\x07/g, '');
+                      recentOutput += text;
+                      // Keep only the last 512 chars
+                      if (recentOutput.length > 512) recentOutput = recentOutput.slice(-512);
+                      checkAutoConfirm();
+                    }
                   }
                 });
 
