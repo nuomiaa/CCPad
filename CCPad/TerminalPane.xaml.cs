@@ -1,6 +1,7 @@
 using System;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.Web.WebView2.Core;
@@ -22,6 +23,12 @@ namespace CCPad
         private int _cols = 120;
         private int _rows = 30;
         private TaskCompletionSource? _readyTcs;
+        private bool _autoConfirm;
+        private string _recentOutput = "";
+        private Timer? _autoConfirmTimer;
+        private static readonly string[] ConfirmHints = [
+            "Do you want to proceed?", "Are you sure?", "Continue?", "Proceed?", "是否继续"
+        ];
 
         /// <summary>Unique ID for this pane, used by Web remote access.</summary>
         public string PaneId { get; } = Guid.NewGuid().ToString("N")[..8];
@@ -160,6 +167,62 @@ namespace CCPad
                 _focusOnFirstOutput = false;
                 DispatcherQueue.TryEnqueue(FocusTerminal);
             }
+            if (_autoConfirm)
+                CheckAutoConfirm(data);
+        }
+
+        private void CheckAutoConfirm(byte[] data)
+        {
+            // Strip ANSI escape sequences, keep plain text
+            string text = Encoding.UTF8.GetString(data);
+            var sb = new StringBuilder(text.Length);
+            for (int i = 0; i < text.Length; i++)
+            {
+                if (text[i] == '\x1b' && i + 1 < text.Length)
+                {
+                    char next = text[i + 1];
+                    if (next == '[')
+                    {
+                        i += 2;
+                        while (i < text.Length && text[i] != '@' && !(text[i] >= 'A' && text[i] <= 'Z') && !(text[i] >= 'a' && text[i] <= 'z')) i++;
+                        continue;
+                    }
+                    if (next == ']')
+                    {
+                        i += 2;
+                        while (i < text.Length && text[i] != '\x07' && text[i] != '\x1b') i++;
+                        continue;
+                    }
+                }
+                else
+                {
+                    sb.Append(text[i]);
+                }
+            }
+            _recentOutput += sb.ToString();
+            if (_recentOutput.Length > 512)
+                _recentOutput = _recentOutput[^512..];
+
+            string lower = _recentOutput.ToLowerInvariant();
+            bool matched = false;
+            foreach (var hint in ConfirmHints)
+            {
+                if (lower.Contains(hint.ToLowerInvariant()))
+                {
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched) return;
+
+            _recentOutput = "";
+            _autoConfirmTimer?.Dispose();
+            _autoConfirmTimer = new Timer(_ =>
+            {
+                if (_autoConfirm && _session != null)
+                    _session.WriteInput("\r");
+                _autoConfirmTimer = null;
+            }, null, 300, Timeout.Infinite);
         }
 
         private void OnExited()
@@ -255,6 +318,11 @@ namespace CCPad
                         }
                         break;
 
+                    case "autoConfirm":
+                        _autoConfirm = doc.RootElement.GetProperty("enabled").GetBoolean();
+                        _recentOutput = "";
+                        break;
+
                 }
             }
             catch { }
@@ -281,6 +349,7 @@ namespace CCPad
         {
             if (_disposed) return;
             _disposed = true;
+            _autoConfirmTimer?.Dispose();
             TerminalSessionRegistry.Unregister(PaneId);
             TerminalSessionRegistry.NotifyChanged();
             if (_session != null)
@@ -332,7 +401,6 @@ namespace CCPad
                 #auto-confirm-btn:hover { opacity: 1; }
                 #auto-confirm-btn.active {
                   background: rgba(0, 120, 80, 0.8);
-                  color: #4fv4a0;
                   color: #4feba0;
                   border-color: #2a9;
                   opacity: 0.85;
@@ -361,35 +429,15 @@ namespace CCPad
                 term.open(document.getElementById('terminal'));
                 fit.fit();
 
-                /* ── Auto-confirm logic ── */
+                /* ── Auto-confirm toggle ── */
                 let autoConfirm = false;
-                let autoConfirmTimer = null;
-                // Rolling buffer of recent output text for pattern matching
-                let recentOutput = '';
                 const ACBtn = document.getElementById('auto-confirm-btn');
-
                 ACBtn.addEventListener('click', () => {
                   autoConfirm = !autoConfirm;
                   ACBtn.classList.toggle('active', autoConfirm);
-                  recentOutput = '';
+                  window.chrome.webview.postMessage(JSON.stringify({ type: 'autoConfirm', enabled: autoConfirm }));
                   term.focus();
                 });
-
-                const confirmHints = ['Do you want to proceed?','Are you sure?','Continue?','Proceed?','是否继续'];
-
-                function checkAutoConfirm() {
-                  if (!autoConfirm) return;
-                  const lower = recentOutput.toLowerCase();
-                  if (!confirmHints.some(h => lower.includes(h.toLowerCase())))  return;
-                  if (autoConfirmTimer) clearTimeout(autoConfirmTimer);
-                  autoConfirmTimer = setTimeout(() => {
-                    if (autoConfirm)
-                      window.chrome.webview.postMessage(JSON.stringify({ type: 'input', data: '\r' }));
-                    autoConfirmTimer = null;
-                  }, 300);
-                  recentOutput = '';
-                }
-                /* ── End auto-confirm ── */
 
                 term.attachCustomKeyEventHandler(e => {
                   if (e.type !== 'keydown') return true;
@@ -460,17 +508,6 @@ namespace CCPad
                     const bytes = new Uint8Array(bin.length);
                     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
                     term.write(bytes);
-
-                    // Feed plain text into auto-confirm buffer
-                    if (autoConfirm) {
-                      // Strip ANSI escape sequences for pattern matching
-                      const text = bin.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
-                                      .replace(/\x1b\][^\x07]*\x07/g, '');
-                      recentOutput += text;
-                      // Keep only the last 512 chars
-                      if (recentOutput.length > 512) recentOutput = recentOutput.slice(-512);
-                      checkAutoConfirm();
-                    }
                   }
                 });
 
